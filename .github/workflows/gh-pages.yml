@@ -3,7 +3,7 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches:
-      - master  # Changed from main to master since your repository uses master branch
+      - master
   pull_request:
 
 jobs:
@@ -21,17 +21,39 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install dependencies
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: latest
+          run_install: false
+
+      - name: Get pnpm store directory
+        shell: bash
         run: |
-          npm install -g pnpm
-          pnpm install
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install
 
       - name: Build
         run: pnpm run build
+        env:
+          NODE_ENV: production
 
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v3
         if: github.ref == 'refs/heads/master'
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./build/client  # Updated to match Remix build output directory
+          publish_dir: ./build/client
+          cname: ${{ secrets.CNAME }}
+          enable_jekyll: false
+          force_orphan: true
